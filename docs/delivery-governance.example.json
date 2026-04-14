@@ -1,0 +1,32 @@
+{
+  "default": {
+    "allowed_repo_patterns": ["acme/*"],
+    "blocked_repo_patterns": ["acme/legacy-*"],
+    "blocked_path_patterns": ["secrets/*", "prod-credentials/*"],
+    "require_rollout_stage_for_paths": [
+      ".github/workflows/*",
+      "infra/*",
+      "terraform/*",
+      "deploy/*",
+      "ops/*",
+      "policies/*"
+    ],
+    "require_production_rollout_for_paths": [
+      "deploy/prod/*",
+      "ops/prod/*"
+    ],
+    "allowed_rollout_stages": ["dev", "staging", "production"],
+    "blocked_command_patterns": ["rm -rf *", "terraform apply*"],
+    "blocked_command_decisions": ["block"],
+    "allowed_planner_providers": ["heuristic", "openai"],
+    "allowed_patch_providers": ["openai"],
+    "allowed_planner_models": ["gpt-5.4", "gpt-4.1-mini"],
+    "allowed_patch_models": ["gpt-5.4"],
+    "require_base_branch_protection": true
+  },
+  "repos": {
+    "acme/widgets": {
+      "allowed_patch_models": ["gpt-5.4", "gpt-5.4-mini"]
+    }
+  }
+}

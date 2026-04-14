@@ -1,0 +1,58 @@
+{
+  "default": {
+    "required_approvals_by_risk": {
+      "low": 0,
+      "medium": 1,
+      "high": 1,
+      "critical": 2
+    },
+    "allow_self_approval": false,
+    "blocked_labels": ["do-not-merge", "wip"],
+    "high_risk_labels": ["security", "infra", "production"],
+    "critical_risk_labels": ["security-critical"],
+    "high_risk_paths": [
+      ".github/",
+      "infra/",
+      "terraform/",
+      "Dockerfile",
+      "pyproject.toml",
+      "package.json",
+      "package-lock.json"
+    ],
+    "critical_risk_paths": [
+      "secrets/",
+      "policies/",
+      "deploy/prod/"
+    ],
+    "required_reviewer_teams": [],
+    "allowed_requester_teams": [],
+    "allowed_reviewer_teams": [],
+    "max_low_risk_changed_files": 2,
+    "max_medium_risk_changed_files": 6
+  },
+  "repos": {
+    "acme/widgets": {
+      "required_approvals_by_risk": {
+        "high": 2,
+        "critical": 2
+      },
+      "required_reviewer_teams": ["platform"],
+      "allowed_requester_teams": ["platform", "release"],
+      "allowed_reviewer_teams": ["platform", "security"]
+    }
+  },
+  "teams": {
+    "platform": {
+      "can_request": true,
+      "can_review": true
+    },
+    "release": {
+      "can_request": true,
+      "can_review": false
+    },
+    "interns": {
+      "can_request": false,
+      "can_review": false
+    }
+  }
+}
