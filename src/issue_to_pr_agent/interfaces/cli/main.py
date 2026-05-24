@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
+import signal
 import sys
 
 from ...agents.planner.heuristic import HeuristicPlanner
@@ -2540,6 +2542,17 @@ def _worker_run(
     job_types: list[str] | None,
     worker_tags: list[str] | None,
 ) -> int:
+    logger = logging.getLogger(__name__)
+    shutdown_flag = False
+
+    def _on_shutdown(signum, frame):
+        nonlocal shutdown_flag
+        shutdown_flag = True
+        logger.info("Received signal %s, finishing current job before shutdown.", signal.Signals(signum).name)
+
+    signal.signal(signal.SIGTERM, _on_shutdown)
+    signal.signal(signal.SIGINT, _on_shutdown)
+
     processor = ProcessQueueUseCase(
         repository,
         settings,
@@ -2549,6 +2562,7 @@ def _worker_run(
         notification_outbox=notification_outbox,
         trace_recorder=trace_recorder,
         alert_manager=alert_manager,
+        shutdown_requested=lambda: shutdown_flag,
     )
     result = processor.process(
         worker_id=worker_id,

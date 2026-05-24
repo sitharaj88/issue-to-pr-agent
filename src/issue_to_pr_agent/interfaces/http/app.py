@@ -245,6 +245,16 @@ class ControlPlaneApi:
         headers: dict[str, str] | None = None,
         body: bytes | str | None = None,
     ) -> JsonResponse:
+        if method == "OPTIONS":
+            cors_headers = {}
+            if self._settings.cors_allowed_origin:
+                cors_headers = {
+                    "Access-Control-Allow-Origin": self._settings.cors_allowed_origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Authorization, Content-Type, Idempotency-Key, X-Api-Client, X-GitHub-Event, X-Hub-Signature-256",
+                    "Access-Control-Max-Age": "86400",
+                }
+            return JsonResponse(status_code=204, body="", headers=cors_headers)
         normalized_headers = {key.lower(): value for key, value in (headers or {}).items()}
         body_bytes = _body_bytes(body)
         query = parse_qs(query_string, keep_blank_values=False)
@@ -352,6 +362,8 @@ class ControlPlaneApi:
             return self._text(render_script(), content_type="application/javascript; charset=utf-8")
         if method == "GET" and path == "/healthz":
             return self._json(200, {"status": "ok", "environment": self._settings.environment})
+        if method == "GET" and path == "/metrics":
+            return self._handle_metrics(headers=headers)
         if method == "GET" and path == "/v1/openapi.json":
             return self._json(200, _openapi_schema())
         if method == "GET" and path == "/v1/identity/me":
@@ -1524,6 +1536,8 @@ class ControlPlaneApi:
         if principal is not None:
             return principal
         if self._settings.api_token is None and self._settings.auth_token_secret is None:
+            if self._settings.env == "production":
+                raise PolicyError("Authentication is required in production mode.")
             return None
         if self._settings.api_token is not None and auth == f"Bearer {self._settings.api_token}":
             return None
@@ -1696,7 +1710,39 @@ class ControlPlaneApi:
         headers = dict(response.headers)
         headers["X-Request-ID"] = request_id
         headers.update(extra_headers)
+        if self._settings.cors_allowed_origin:
+            headers["Access-Control-Allow-Origin"] = self._settings.cors_allowed_origin
+            headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Idempotency-Key, X-Api-Client, X-GitHub-Event, X-Hub-Signature-256"
         return JsonResponse(status_code=response.status_code, body=response.body, headers=headers)
+
+    def _handle_metrics(self, *, headers: dict[str, str]) -> JsonResponse:
+        """Return Prometheus-compatible metrics."""
+        self._authenticate(path="/metrics", headers=headers)
+        queue_jobs = self._repository.list_queue_jobs(limit=1000)
+        queued = sum(1 for j in queue_jobs if j.status == QueueJobStatus.QUEUED)
+        running = sum(1 for j in queue_jobs if j.status == QueueJobStatus.RUNNING)
+        failed = sum(1 for j in queue_jobs if j.status == QueueJobStatus.FAILED)
+        succeeded = sum(1 for j in queue_jobs if j.status == QueueJobStatus.SUCCEEDED)
+        runs = self._repository.list_runs(limit=1000)
+        total_runs = len(runs)
+        lines = [
+            "# HELP issue_to_pr_queue_jobs_total Total queue jobs by status.",
+            "# TYPE issue_to_pr_queue_jobs_total gauge",
+            f'issue_to_pr_queue_jobs_total{{status="queued"}} {queued}',
+            f'issue_to_pr_queue_jobs_total{{status="running"}} {running}',
+            f'issue_to_pr_queue_jobs_total{{status="failed"}} {failed}',
+            f'issue_to_pr_queue_jobs_total{{status="succeeded"}} {succeeded}',
+            "# HELP issue_to_pr_runs_total Total planning runs.",
+            "# TYPE issue_to_pr_runs_total gauge",
+            f"issue_to_pr_runs_total {total_runs}",
+        ]
+        body = "\n".join(lines) + "\n"
+        return JsonResponse(
+            status_code=200,
+            body=body,
+            headers={"Content-Type": "text/plain; charset=utf-8"},
+        )
 
 
 def _default_planner_factory(settings: Settings, provider: str) -> PlannerClient:

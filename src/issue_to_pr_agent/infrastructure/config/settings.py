@@ -53,6 +53,8 @@ def _parse_float_env(name: str, default: float) -> float:
 @dataclass(frozen=True)
 class Settings:
     environment: str
+    env: str
+    cors_allowed_origin: str | None
     api_host: str
     api_port: int
     api_token: str | None
@@ -146,6 +148,8 @@ class Settings:
 
         settings = cls(
             environment=os.getenv("APP_ENV", "local").strip().lower(),
+            env=os.getenv("ISSUE_TO_PR_ENV", "development").strip().lower(),
+            cors_allowed_origin=_normalize_optional(os.getenv("ISSUE_TO_PR_CORS_ALLOWED_ORIGIN")),
             api_host=os.getenv("ISSUE_TO_PR_API_HOST", "127.0.0.1").strip(),
             api_port=_parse_int_env("ISSUE_TO_PR_API_PORT", 8080),
             api_token=_normalize_optional(os.getenv("ISSUE_TO_PR_API_TOKEN")),
@@ -273,6 +277,13 @@ class Settings:
     def validate(self) -> None:
         if self.environment not in {"local", "staging", "production"}:
             raise ConfigurationError("APP_ENV must be one of: local, staging, production.")
+        if self.env not in {"development", "production"}:
+            raise ConfigurationError("ISSUE_TO_PR_ENV must be 'development' or 'production'.")
+        if self.env == "production" and self.api_token is None and self.auth_token_secret is None:
+            raise ConfigurationError(
+                "Production mode requires at least one auth mechanism: "
+                "set ISSUE_TO_PR_API_TOKEN or ISSUE_TO_PR_AUTH_TOKEN_SECRET."
+            )
         if not self.api_host:
             raise ConfigurationError("ISSUE_TO_PR_API_HOST must not be empty.")
         if self.api_port <= 0 or self.api_port > 65535:

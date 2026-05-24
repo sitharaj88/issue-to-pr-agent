@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 from ...agents.planner.base import PlannerClient
@@ -29,7 +30,7 @@ from ...domain.entities import (
     QueueJobType,
     WorkerHeartbeatRecord,
     WorkerStatus,
-)
+    )
 from ...domain.policies.safety import SafetyPolicy
 from ...infrastructure.config.settings import Settings
 from ...infrastructure.notifications import FileNotificationOutbox
@@ -79,6 +80,7 @@ class ProcessQueueUseCase:
         trace_recorder: TraceRecorder | None = None,
         alert_manager: AlertManager | None = None,
         logger: logging.Logger | None = None,
+        shutdown_requested: Callable[[], bool] | None = None,
     ) -> None:
         self._repository = repository
         self._settings = settings
@@ -91,6 +93,7 @@ class ProcessQueueUseCase:
         self._trace_recorder = trace_recorder
         self._alert_manager = alert_manager
         self._logger = logger or logging.getLogger(__name__)
+        self._shutdown_requested = shutdown_requested or (lambda: False)
 
     def process(
         self,
@@ -129,8 +132,12 @@ class ProcessQueueUseCase:
         )
 
         for _ in range(max(max_jobs, 0)):
+            if self._shutdown_requested():
+                self._logger.info("Shutdown requested, stopping queue processing.")
+                break
             now = datetime.now(timezone.utc).isoformat()
             self._repository.requeue_expired_queue_jobs(now=now)
+
             claimed = self._repository.claim_next_queue_job(
                 worker_id=worker_id,
                 now=now,

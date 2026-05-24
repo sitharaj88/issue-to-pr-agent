@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import shlex
 import subprocess
 import time
 from typing import Protocol
@@ -25,10 +26,8 @@ class LocalCommandRunner:
     def run(self, *, command: str, cwd: Path, timeout_seconds: int) -> CommandRunnerResult:
         start = time.monotonic()
         completed = subprocess.run(
-            command,
+            shlex.split(command),
             cwd=cwd,
-            shell=True,
-            executable="/bin/bash",
             capture_output=True,
             text=True,
             timeout=timeout_seconds,

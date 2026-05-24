@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import signal
 from typing import Iterable
 from wsgiref.simple_server import make_server
 
@@ -11,6 +13,8 @@ from ...infrastructure.config.settings import Settings
 from ...infrastructure.persistence.run_repository import RunRepository
 from ...observability.logging.config import configure_logging
 from .app import ControlPlaneApi
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,8 +26,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def serve(api: ControlPlaneApi, *, host: str, port: int) -> None:
     with make_server(host, port, _wsgi_app(api)) as server:
-        print(f"issue-to-pr API listening on http://{host}:{port}")
+        def _shutdown(signum, frame):
+            logger.info("Received signal %s, shutting down API server.", signal.Signals(signum).name)
+            server.shutdown()
+
+        signal.signal(signal.SIGTERM, _shutdown)
+        signal.signal(signal.SIGINT, _shutdown)
+        logger.info("issue-to-pr API listening on http://%s:%d", host, port)
         server.serve_forever()
+        logger.info("API server stopped.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -109,6 +120,7 @@ def _reason_phrase(status_code: int) -> str:
         200: "OK",
         201: "Created",
         202: "Accepted",
+        204: "No Content",
         400: "Bad Request",
         403: "Forbidden",
         404: "Not Found",

@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      ISSUE_TO_PR_ARTIFACT_DIR: /data
+      ISSUE_TO_PR_API_HOST: "0.0.0.0"
+      ISSUE_TO_PR_API_PORT: "8080"
+    volumes:
+      - agent-data:/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["issue-to-pr", "worker-run", "--worker-id", "worker-1", "--max-jobs", "10"]
+    env_file: .env
+    environment:
+      ISSUE_TO_PR_ARTIFACT_DIR: /data
+    volumes:
+      - agent-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  agent-data:
