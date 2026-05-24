@@ -317,8 +317,8 @@ class ControlPlaneApi:
             response = self._json(403, {"error": str(exc)})
         except (ValueError, FileNotFoundError, NotADirectoryError, ConfigurationError, JSONDecodeError) as exc:
             response = self._json(400, {"error": str(exc)})
-        except Exception as exc:  # pragma: no cover - defensive path
-            response = self._json(500, {"error": str(exc)})
+        except Exception:  # pragma: no cover - defensive path
+            response = self._json(500, {"error": "Internal server error."})
         finalized = self._finalize_response(
             response,
             request_id=request_id,

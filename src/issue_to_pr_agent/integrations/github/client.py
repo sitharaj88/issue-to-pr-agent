@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from urllib.parse import urljoin
 from urllib import error, request
 
@@ -123,22 +124,32 @@ class GitHubClient:
         if self._settings.github_token:
             headers["Authorization"] = f"Bearer {self._settings.github_token}"
 
-        data = None
+        request_data = None
         if payload is not None:
-            data = json.dumps(payload).encode("utf-8")
+            request_data = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
 
-        req = request.Request(url, headers=headers, method=method.upper(), data=data)
-        try:
-            with request.urlopen(req, timeout=20) as response:
-                body = response.read().decode("utf-8")
-        except error.HTTPError as exc:
-            details = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"GitHub API request failed: {exc.code} {details}") from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"GitHub API request failed: {exc.reason}") from exc
-
-        data = json.loads(body)
-        if not isinstance(data, dict):
-            raise RuntimeError("GitHub API returned an unexpected payload.")
-        return data
+        req = request.Request(url, headers=headers, method=method.upper(), data=request_data)
+        last_error: Exception | None = None
+        for attempt in range(4):
+            try:
+                with request.urlopen(req, timeout=20) as response:
+                    body = response.read().decode("utf-8")
+                data = json.loads(body)
+                if not isinstance(data, dict):
+                    raise RuntimeError("GitHub API returned an unexpected payload.")
+                return data
+            except error.HTTPError as exc:
+                if exc.code in {429, 500, 502, 503} and attempt < 3:
+                    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                    delay = int(retry_after) if retry_after and retry_after.isdigit() else (2 ** attempt)
+                    time.sleep(delay)
+                    last_error = RuntimeError(f"GitHub API request failed: {exc.code}")
+                    # Recreate the request since the previous one may be consumed
+                    req = request.Request(url, headers=headers, method=method.upper(), data=request_data)
+                    continue
+                details = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(f"GitHub API request failed: {exc.code} {details}") from exc
+            except error.URLError as exc:
+                raise RuntimeError(f"GitHub API request failed: {exc.reason}") from exc
+        raise last_error or RuntimeError("GitHub API request failed after retries.")

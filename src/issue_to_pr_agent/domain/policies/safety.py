@@ -27,16 +27,62 @@ class SafetyPolicy:
                 reason="Empty command requires manual review.",
             )
 
+        # Shell operators check (use raw normalized to catch case-sensitive operators)
+        shell_operators = ("|", ";", "&&", "||", "$(", "`")
+        if any(op in normalized for op in shell_operators):
+            return CommandAssessment(
+                command=command,
+                decision=CommandDecision.BLOCK,
+                reason="Command contains shell operators that could be used for injection.",
+            )
+        # Output redirection: block > but not >=
+        if ">" in normalized:
+            # Check that every '>' is not part of '>='
+            i = 0
+            while i < len(normalized):
+                if normalized[i] == ">":
+                    if i + 1 < len(normalized) and normalized[i + 1] == "=":
+                        i += 2  # skip >=
+                    else:
+                        return CommandAssessment(
+                            command=command,
+                            decision=CommandDecision.BLOCK,
+                            reason="Command contains shell operators that could be used for injection.",
+                        )
+                else:
+                    i += 1
+
         blocked_terms = (
             "rm -rf",
             "git reset --hard",
             "git clean -fd",
-            "sudo ",
             "curl ",
             "wget ",
             "chmod 777",
+            "bash -c",
+            "sh -c",
+            "python -c",
+            "python3 -c",
+            "eval ",
+            "exec(",
+            "nc ",
+            "ncat ",
+            "netcat ",
+            "git push",
+            "git remote add",
+            "mkfs",
+            "dd if=",
+            "format ",
+            "source ",
+            ". /",
         )
-        if any(term in lowered for term in blocked_terms):
+        # Fix sudo detection: match as a word boundary
+        sudo_found = (
+            lowered == "sudo"
+            or lowered.startswith("sudo ")
+            or " sudo " in lowered
+        )
+        if sudo_found or any(term in lowered for term in blocked_terms):
             return CommandAssessment(
                 command=command,
                 decision=CommandDecision.BLOCK,

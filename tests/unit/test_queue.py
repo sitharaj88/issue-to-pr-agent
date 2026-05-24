@@ -182,14 +182,14 @@ class QueueWorkflowTests(unittest.TestCase):
             )
             blocked = repository.claim_next_queue_job(
                 worker_id="worker-1",
-                now="2026-04-14T10:00:00+00:00",
+                now="2099-01-01T00:00:00+00:00",
                 worker_tags=["linux"],
             )
             self.assertIsNone(blocked)
 
             claimed = repository.claim_next_queue_job(
                 worker_id="worker-1",
-                now="2026-04-14T23:59:00+00:00",
+                now="2099-01-01T00:00:00+00:00",
                 worker_tags=["linux", "docker"],
             )
             self.assertIsNotNone(claimed)
@@ -234,7 +234,7 @@ class QueueWorkflowTests(unittest.TestCase):
             )
             second = repository.claim_next_queue_job(
                 worker_id="worker-2",
-                now="2026-04-14T23:59:30+00:00",
+                now="2099-01-01T00:00:00+00:00",
                 worker_tags=["docker"],
             )
             self.assertIsNone(second)

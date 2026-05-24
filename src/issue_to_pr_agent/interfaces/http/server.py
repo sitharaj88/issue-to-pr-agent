@@ -59,6 +59,10 @@ def _wsgi_app(api: ControlPlaneApi):
             content_length = int(content_length_raw)
         except ValueError:
             content_length = 0
+        max_body_bytes = 10 * 1024 * 1024  # 10 MB
+        if content_length > max_body_bytes:
+            start_response("413 Payload Too Large", [("Content-Type", "application/json")])
+            return [json.dumps({"error": "Request body exceeds maximum size."}).encode("utf-8")]
         body = environ["wsgi.input"].read(content_length) if content_length > 0 else b""
         headers = _extract_headers(environ)
         response = api.handle_request(
@@ -109,6 +113,7 @@ def _reason_phrase(status_code: int) -> str:
         403: "Forbidden",
         404: "Not Found",
         409: "Conflict",
+        413: "Payload Too Large",
         429: "Too Many Requests",
         500: "Internal Server Error",
     }.get(status_code, "OK")

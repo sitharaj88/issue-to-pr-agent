@@ -54,4 +54,5 @@ class RepositoryContextBuilderTests(unittest.TestCase):
             self.assertGreater(context.repository_index.symbol_count, 0)
             self.assertEqual(context.repository_index.top_symbols[0].name, "load_config")
             self.assertGreater(context.repository_index.complexity_score, 0)
-            self.assertGreater(context.evaluation.score, 0)
+            self.assertEqual(context.evaluation.score, 0)
+            self.assertIn("not evaluated", context.evaluation.summary.lower())

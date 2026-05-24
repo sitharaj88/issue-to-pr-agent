@@ -4,10 +4,8 @@ from collections import Counter
 import re
 from pathlib import Path
 
-from ...application.services.evaluation import PlanningEvaluator
 from ...domain.entities import (
     AgentPlan,
-    EvaluationScore,
     IndexedSymbol,
     IssueContext,
     PlanningContext,
@@ -102,7 +100,6 @@ class RepositoryContextBuilder(ContextBuilder):
         self._snippet_line_limit = snippet_line_limit
         self._max_preview_bytes = max_preview_bytes
         self._max_indexed_symbols = max_indexed_symbols
-        self._evaluator = PlanningEvaluator()
 
     def build(
         self,
@@ -115,24 +112,11 @@ class RepositoryContextBuilder(ContextBuilder):
         repository_index = self._build_repository_index(repo_snapshot, keywords)
         ranked_files = self._rank_files(repo_snapshot, keywords, profile, repository_index)
         summary = self._build_summary(repo_snapshot, keywords, profile, repository_index, ranked_files)
-        provisional_context = PlanningContext(
-            summary=summary,
-            issue_keywords=keywords,
-            repository_profile=profile,
-            repository_index=repository_index,
-            ranked_files=ranked_files,
-            suggested_test_commands=profile.test_commands,
-        )
-        evaluation = self._evaluator.evaluate(
-            planning_context=provisional_context,
-            plan=_context_bootstrap_plan(ranked_files=ranked_files, profile=profile),
-        )
         return PlanningContext(
             summary=summary,
             issue_keywords=keywords,
             repository_profile=profile,
             repository_index=repository_index,
-            evaluation=evaluation,
             ranked_files=ranked_files,
             suggested_test_commands=profile.test_commands,
         )

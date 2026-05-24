@@ -23,5 +23,8 @@ class TelemetrySinkClient:
             },
             method="POST",
         )
-        with request.urlopen(req, timeout=5):
-            return
+        try:
+            with request.urlopen(req, timeout=5):
+                return
+        except Exception:
+            return  # Telemetry is best-effort; never crash the worker.
